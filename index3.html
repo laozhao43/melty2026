@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车辆远程监控系统 - 3D DShot 旗舰版</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --accent: #38bdf8;
+            --success: #4ade80;
+            --danger: #f43f5e;
+            --warning: #fbbf24;
+            --border: #334155;
+        }
+
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            background: var(--bg-color); 
+            color: var(--text-main); 
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container { width: 100%; max-width: 1100px; }
+
+        header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        h1 { margin: 0; font-weight: 300; letter-spacing: 2px; color: var(--accent); font-size: 1.4rem; }
+        
+        .status-tag {
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+        .off { background: rgba(244, 63, 94, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        .on { background: rgba(74, 222, 128, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .reconnecting { background: rgba(251, 191, 36, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+
+        .dashboard-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+        }
+
+        @media (max-width: 850px) {
+            .dashboard-sections { grid-template-columns: 1fr; }
+        }
+
+        .section-group {
+            background: rgba(30, 41, 59, 0.5);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-size: 0.8rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .card { 
+            background: var(--card-bg); 
+            padding: 15px; 
+            border-radius: 10px; 
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .full-width { grid-column: span 2; }
+
+        .label { color: var(--text-dim); font-size: 0.65rem; text-transform: uppercase; margin-bottom: 4px;}
+        .value { font-size: 1.5rem; font-weight: 700; font-family: 'Consolas', monospace; }
+        .unit { font-size: 0.7rem; color: var(--accent); margin-left: 3px; }
+
+        /* 控制面板 */
+        .control-panel {
+            margin-top: 30px;
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 15px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            border: 1px solid var(--border);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .stick-container { display: flex; flex-direction: column; align-items: center; }
+        .base {
+            width: 100px; height: 100px;
+            background: var(--bg-color);
+            border-radius: 50%;
+            position: relative;
+            border: 2px solid var(--border);
+        }
+        .dot {
+            width: 24px; height: 24px;
+            background: var(--accent);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+            transition: transform 0.05s linear;
+        }
+
+        .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .btn-circle {
+            width: 36px; height: 36px; border-radius: 50%; background: var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; color: var(--text-dim); font-size: 0.8rem;
+        }
+        .btn-active { background: var(--accent); color: var(--bg-color); box-shadow: 0 0 15px var(--accent); }
+
+        .trigger-container { width: 100px; height: 6px; background: var(--bg-color); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+        .trigger-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.05s linear; }
+
+        .progress-bar { height: 4px; background: #000; margin-top: 8px; border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>TANK <span style="font-weight: 200;">MONITOR</span></h1>
+            <div id="mqtt-stat" class="status-tag off">DISCONNECTED</div>
+        </header>
+
+        <div class="dashboard-sections">
+            <!-- 左电机 (ID: 0) -->
+            <div class="section-group" id="motor-0-group">
+                <div class="section-title"><span>🔵</span> 左电机 (ID: 0 - PIN 16)</div>
+                <div class="grid-container">
+                    <div class="card full-width">
+                        <div class="label">实时转速</div>
+                        <div class="value"><span id="m0_rpm">0</span><span class="unit">RPM</span></div>
+                        <div class="progress-bar"><div id="m0_rpm_bar" class="progress-fill"></div></div>
+                    </div>
+                    <div class="card">
+                        <div class="label">电流</div>
+                        <div class="value"><span id="m0_curr">0.00</span><span class="unit">A</span></div>
+                    </div>
+                    <div class="card">
+                        <div class="label">驱动器温度</div>
+                        <div class="value"><span id="m0_temp">--</span><span class="unit">°C</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右电机 (ID: 1) -->
+            <div class="section-group" id="motor-1-group">
+                <div class="section-title"><span>🟢</span> 右电机 (ID: 1 - PIN 27)</div>
+                <div class="grid-container">
+                    <div class="card full-width">
+                        <div class="label">实时转速</div>
+                        <div class="value"><span id="m1_rpm">0</span><span class="unit">RPM</span></div>
+                        <div class="progress-bar"><div id="m1_rpm_bar" class="progress-fill"></div></div>
+                    </div>
+                    <div class="card">
+                        <div class="label">电流</div>
+                        <div class="value"><span id="m1_curr">0.00</span><span class="unit">A</span></div>
+                    </div>
+                    <div class="card">
+                        <div class="label">驱动器温度</div>
+                        <div class="value"><span id="m1_temp">--</span><span class="unit">°C</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统全局状态 -->
+            <div class="section-group full-width" style="grid-column: span 2;">
+                <div class="section-title"><span>⚡</span> 系统电源 & 运行状态</div>
+                <div class="grid-container" style="grid-template-columns: repeat(4, 1fr);">
+                    <div class="card">
+                        <div class="label">电池电压</div>
+                        <div class="value"><span id="voltage">0.00</span><span class="unit">V</span></div>
+                    </div>
+                    <div class="card">
+                        <div class="label">系统状态</div>
+                        <div class="value" style="font-size: 1.2rem; transition: color 0.3s;" id="sys_status">DISARMED</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">TCS 强度</div>
+                        <div class="value"><span id="traction_ctrl">0</span><span class="unit">%</span></div>
+                    </div>
+                    <div class="card">
+                        <div class="label">滑移率</div>
+                        <div class="value"><span id="slip_pc">0</span><span class="unit">%</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 手柄监控面板 -->
+        <div class="control-panel">
+            <div class="stick-container">
+                <div class="label" style="margin-bottom: 10px;">左摇杆 (LX/LY)</div>
+                <div class="base"><div id="l-dot" class="dot"></div></div>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
+                <div class="btn-grid">
+                    <div id="btn-y" class="btn-circle">Y</div>
+                    <div id="btn-x" class="btn-circle">X</div>
+                    <div id="btn-b" class="btn-circle">B</div>
+                    <div id="btn-a" class="btn-circle">A</div>
+                </div>
+                <div>
+                    <div class="label" style="text-align: center;">右扳机 (RT)</div>
+                    <div class="trigger-container"><div id="rt-bar" class="trigger-bar"></div></div>
+                </div>
+            </div>
+
+            <div class="stick-container">
+                <div class="label" style="margin-bottom: 10px;">右摇杆 (RX/RY)</div>
+                <div class="base"><div id="r-dot" class="dot"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 更新为你的 Broker IP: 192.168.1.100
+        const BROKER_IP = '192.168.1.101';
+        const client = mqtt.connect(`ws://${BROKER_IP}:9001`, {
+            username: 'myuser',
+            password: '123',
+            reconnectPeriod: 1000
+        });
+
+        const statTag = document.getElementById('mqtt-stat');
+
+        client.on('connect', () => {
+            statTag.innerText = "ONLINE";
+            statTag.className = "status-tag on";
+            client.subscribe(['sensors/esp32', 'controller/xbox']);
+        });
+
+        client.on('offline', () => {
+            statTag.innerText = "OFFLINE";
+            statTag.className = "status-tag off";
+        });
+
+        client.on('message', (topic, message) => {
+            try {
+                const data = JSON.parse(message.toString());
+
+                if (topic === 'sensors/esp32') {
+                    // 1. 处理电机特定数据 (基于 ID)
+                    if (data.id !== undefined) {
+                        const prefix = data.id === 0 ? 'm0' : 'm1';
+                        if (document.getElementById(`${prefix}_rpm`)) {
+                            document.getElementById(`${prefix}_rpm`).innerText = data.rpm || 0;
+                            document.getElementById(`${prefix}_curr`).innerText = (data.curr || 0).toFixed(2);
+                            document.getElementById(`${prefix}_temp`).innerText = data.temp || 0;
+                            
+                            // 更新转速条
+                            const rpmPct = Math.min(((data.rpm || 0) / 15000) * 100, 100);
+                            document.getElementById(`${prefix}_rpm_bar`).style.width = rpmPct + '%';
+                        }
+                    }
+
+                    // 2. 处理旧版字段 (向下兼容单电机测试)
+                    if (data.l_rpm !== undefined) {
+                        document.getElementById('m0_rpm').innerText = data.l_rpm;
+                        document.getElementById('m0_curr').innerText = (data.l_curr || 0).toFixed(2);
+                        document.getElementById('m0_temp').innerText = data.l_temp || 0;
+                    }
+
+                    // 3. 处理全局系统状态
+                    if (data.voltage !== undefined) {
+                        document.getElementById('voltage').innerText = data.voltage.toFixed(2);
+                    }
+                    if (data.volt !== undefined) {
+                        document.getElementById('voltage').innerText = data.volt.toFixed(2);
+                    }
+
+                    // 系统 ARM / DISARM 状态解析
+                    // 根据 main.c 中的逻辑：cJSON_AddNumberToObject(root, "traction_ctrl", g_bot.armed ? 100 : 0);
+                    if (data.traction_ctrl !== undefined) {
+                        const isArmed = data.traction_ctrl > 0;
+                        const statusEl = document.getElementById('sys_status');
+                        statusEl.innerText = isArmed ? "ARMED" : "DISARMED";
+                        statusEl.style.color = isArmed ? "var(--success)" : "var(--danger)";
+                        document.getElementById('traction_ctrl').innerText = data.traction_ctrl;
+                    }
+
+                    if (data.slip_pc !== undefined) {
+                        document.getElementById('slip_pc').innerText = data.slip_pc;
+                    }
+                } 
+                else if (topic === 'controller/xbox') {
+                    updateStick('l-dot', data.lx, data.ly);
+                    updateStick('r-dot', data.rx, data.ry);
+                    
+                    updateButton('btn-a', data.btnA);
+                    updateButton('btn-b', data.btnB);
+                    updateButton('btn-x', data.btnX);
+                    updateButton('btn-y', data.btnY);
+
+                    const rtNormalized = ((data.rt + 1) / 2) * 100;
+                    document.getElementById('rt-bar').style.width = rtNormalized + '%';
+                }
+            } catch (e) {
+                console.warn("Telemetry parse error", e);
+            }
+        });
+
+        function updateStick(id, x, y) {
+            const dot = document.getElementById(id);
+            if (!dot) return;
+            const moveX = (x || 0) * 40; 
+            const moveY = (y || 0) * 40;
+            dot.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
+        }
+
+        function updateButton(id, state) {
+            const btn = document.getElementById(id);
+            if (btn) btn.className = state ? 'btn-circle btn-active' : 'btn-circle';
+        }
+    </script>
+</body>
+</html>
