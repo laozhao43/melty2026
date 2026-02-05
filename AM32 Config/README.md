@@ -1,7 +1,7 @@
 # AM32 电调配置简明指南
 
 ### 1. Arduino 环境配置与固件烧写
-首先，通过 [BlHeli-Passthrough 项目仓库](https://github.com/BrushlessPower/BlHeli-Passthrough/tree/main) 获取转发固件源码。在 Arduino IDE 中，请先于 `文件 -> 首选项` 中配置好网络代理以确保 ESP32 支持包顺利下载。烧录前，务必打开项目中的 `Global.h` 文件，将 `#define ESC_PIN` 后的数字修改为你实际连接电调信号线的引脚编号，随后选择对应的板型（如 ESP32-S3）完成上传。
+首先，通过 [BlHeli-Passthrough ](https://github.com/BrushlessPower/BlHeli-Passthrough/tree/main) 获取passthrough固件源码。在 Arduino IDE 中，请先于 `文件 -> 首选项` 中配置好网络代理以确保 ESP32 支持包顺利下载。根据教程下载相关libraries和板子库。烧录前，务必打开项目中的 `Global.h` 文件，将 `#define ESC_PIN` 后的数字修改为你实际连接电调信号线的引脚编号，随后选择对应的板型（如 ESP32-S3）完成上传。
 
 ### 2. AM32 Configuration Tool 工具下载
 为了保证配置过程的稳定性，请避开兼容性较差的在线版工具，直接前往 [AM32 官方下载页面](https://am32.ca/downloads) 获取桌面客户端。进入页面后点击 `Downloads -> Tools` 目录，根据你的操作系统选择对应的安装包。使用桌面版工具可以有效避免在线版常见的识别成功但无法保存或写入配置（Write Flash）的问题。
