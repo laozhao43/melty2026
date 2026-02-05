@@ -56,7 +56,7 @@ ESP32 与电调链接，与pin对应
 2. 在端口列表中选择对应的 **串口号 (COM Port)**。
 3. 点击 **Connect** 按钮。
 4. 连接成功后，点击 **Read Setup** 读取电调内部参数。
-
+访问 [AM32电调调参教程]([https://am32.ca/downloads](https://combatrobotics.co.nz/pages/programming-am32-escs?srsltid=AfmBOorTEkczOLF7RJBgr4DIZFxYfWj_n3V4GoyJfu2Sbdbjr9NFWd9P))
 > [!TIP]
 > **小贴士**：
 > * **仅读写参数**：通常无需接入动力电池，仅靠信号线的逻辑电平即可完成。
