@@ -1,67 +1,10 @@
-# AM32 电调配置指南 (Arduino/ESP32 Passthrough)
+# AM32 电调配置简明指南
 
-本指南旨在帮助你通过 Arduino 或 ESP32 建立 **Serial Passthrough（串口转发）** 通道，从而利用桌面端配置软件对 AM32 电调进行参数调优与固件升级。
+### 1. Arduino 环境配置与固件烧写
+首先，通过 [BlHeli-Passthrough 项目仓库](https://github.com/BrushlessPower/BlHeli-Passthrough/tree/main) 获取转发固件源码。在 Arduino IDE 中，请先于 `文件 -> 首选项` 中配置好网络代理以确保 ESP32 支持包顺利下载。烧录前，务必打开项目中的 `Global.h` 文件，将 `#define ESC_PIN` 后的数字修改为你实际连接电调信号线的引脚编号，随后选择对应的板型（如 ESP32-S3）完成上传。
 
----
+### 2. AM32 Configuration Tool 工具下载
+为了保证配置过程的稳定性，请避开兼容性较差的在线版工具，直接前往 [AM32 官方下载页面](https://am32.ca/downloads) 获取桌面客户端。进入页面后点击 `Downloads -> Tools` 目录，根据你的操作系统选择对应的安装包。使用桌面版工具可以有效避免在线版常见的识别成功但无法保存或写入配置（Write Flash）的问题。
 
-## 🛠️ 环境配置与安装
-* **项目仓库**: [BrushlessPower/BlHeli-Passthrough](https://github.com/BrushlessPower/BlHeli-Passthrough/tree/main)
-### 1. Arduino IDE 网络代理
-由于部分 Arduino 开发板支持包（Core）及第三方库服务器位于海外，下载时若遇到网络超时，建议配置代理：
-
-* **操作路径**：`文件 (File)` -> `首选项 (Preferences)` -> `网络 (Network)`。
-* **配置方法**：勾选 **“手动设置代理”**，填入你本机的代理服务器地址（通常为 `127.0.0.1`）及对应端口（如 `7890`）。
-### 2. 包安装
-板子库和依赖库安装请参考上方链接
-### 3. 电调引脚配置 (Pin Configuration)
-在将代码烧录到开发板之前，必须根据你的硬件实际连线修改信号引脚定义：
-
-* **修改文件**：打开项目中的 `Global.h`。
-* **代码位置**：
-    ```cpp
-    // 修改下方数字以匹配你连接电调信号线（PWM/TLM）的引脚
-    #define ESC_PIN 3 
-    ```
-
----
-
-## ⚙️ 推荐调试工具
-
-> [!CAUTION]
-> **兼容性警告**：
-> 经实测，**在线配置工具 (Web Configurator)** 存在未知的通信协议兼容性问题。虽然有时能识别到电机，但往往无法成功执行“写入（Write）”或“保存（Save）”操作。
-
-**强烈建议下载并使用官方桌面版工具：**
-1.  **官方下载页面**：访问 [am32.ca/downloads](https://am32.ca/downloads)
-2.  **定位工具**：点击页面上的 `Downloads` -> `Tools` 目录。
-3.  **选择版本**：根据你的操作系统（Windows / Linux / MacOS）下载对应的 `.zip` 或 `.exe` 安装包。
-
----
-
-## 📖 操作指南
-
-### 第一步：固件烧录
-1. 使用 Arduino IDE 打开本项目。
-2. 确认 `Global.h` 中的 `ESC_PIN` 设置与你的物理接线一致。
-3. 在 `工具` 菜单中选择你的开发板型号（例如：**ESP32-S3 Dev Module**）。
-4. 点击 **上传 (Upload)** 按钮。
-
-### 第二步：硬件连接
-ESP32 与电调链接，与pin对应
-
-
-
-### 第三步：参数读取与调试
-1. 启动下载好的 **AM32 Configurator** 桌面程序。
-2. 在端口列表中选择对应的 **串口号 (COM Port)**。
-3. 点击 **Connect** 按钮。
-4. 连接成功后，点击 **Read Setup** 读取电调内部参数。
-访问 [AM32电调调参教程]([https://am32.ca/downloads](https://combatrobotics.co.nz/pages/programming-am32-escs?srsltid=AfmBOorTEkczOLF7RJBgr4DIZFxYfWj_n3V4GoyJfu2Sbdbjr9NFWd9P))
-> [!TIP]
-> **小贴士**：
-> * **仅读写参数**：通常无需接入动力电池，仅靠信号线的逻辑电平即可完成。
-> * **固件更新/电机测试**：必须确保电调已接入动力电池。
-> * **安全第一**：在进行任何电机转向测试前，**务必拆卸螺旋桨**。
-
-
-
+### 3. AM32 Configuration Tool 调参使用
+工具准备就绪后，可参考 [AM32 详细调参教程](https://combatrobotics.co.nz/pages/programming-am32-escs) 进行操作。启动桌面程序并选择正确的串口号点击 `Connect`，成功后即可通过 `Read Setup` 读取电调参数。请注意，仅读写参数通常无需动力电池，但若涉及固件更新或电机转向测试，则**必须接入动力电池**，且**务必提前固定好电机**。
