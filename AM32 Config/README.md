@@ -24,11 +24,6 @@
 * **Sign**: A series of ascending beeps plays when the ESC receives power.
 
 
-* **电池/电芯计数 (Battery/Cell Count)**
-* **现象**：紧接着初始鸣响后，会有数次鸣响，次数对应电调检测到的电池电芯（S数）。
-* **Sign**: Several beeps indicating the detected number of cells.
-
-
 * **信号检测与解锁 (Signal Detection/Arming)**
 * **现象**：一段最终的“解锁”音（通常是升高的音调），表示电调已成功识别到遥控器或飞行控制器的信号。
 * **Sign**: A final "arming" beep (often a rising pitch) signifies it has found the radio/FC signal.
@@ -38,8 +33,8 @@
 ### 2. 状态告警与调试 (Alerts & Debugging)
 
 * **无信号告警 (No Signal)**
-* **现象**：持续的、缓慢的间歇性鸣响，表示电调已通电但未接收到来自接收机或飞控的任何有效信号。
-* **Sign**: Continuous, slow beeping indicates the ESC is powered but not receiving a signal from the radio/flight controller.
+* **现象**：无信号，startup之后没有任何beep
+* **Sign**: no signal=no beep after startup
 
 
 * **固件刷新成功 (Firmware Flash Success)**
@@ -55,3 +50,4 @@
 * **现象**：可能是警笛声？
 * **Sign**: Siren sound?
 
+### 3. 加入pullup resistor后没有任何反应
