@@ -228,32 +228,49 @@
         <div class="control-panel">
             <div class="stick-container">
                 <div class="label" style="margin-bottom: 10px;">左摇杆 (LX/LY)</div>
-                <div class="base"><div id="l-dot" class="dot"></div></div>
+                <div class="base" id="left-stick" style="cursor: pointer;"><div id="l-dot" class="dot"></div></div>
+                <div style="margin-top: 10px; font-size: 0.7rem; color: var(--text-dim);">
+                    <span id="l-coords">0.00, 0.00</span>
+                </div>
             </div>
             
             <div style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
                 <div class="btn-grid">
-                    <div id="btn-y" class="btn-circle">Y</div>
-                    <div id="btn-x" class="btn-circle">X</div>
-                    <div id="btn-b" class="btn-circle">B</div>
-                    <div id="btn-a" class="btn-circle">A</div>
+                    <div id="btn-y" class="btn-circle" style="cursor: pointer;" onclick="sendButton('btnY')">Y</div>
+                    <div id="btn-x" class="btn-circle" style="cursor: pointer;" onclick="sendButton('btnX')">X</div>
+                    <div id="btn-b" class="btn-circle" style="cursor: pointer;" onclick="sendButton('btnB')">B</div>
+                    <div id="btn-a" class="btn-circle" style="cursor: pointer;" onclick="sendButton('btnA')">A</div>
+                </div>
+                <div>
+                    <div class="label" style="text-align: center;">左扳机 (LT)</div>
+                    <div class="trigger-container" style="cursor: pointer;" id="lt-trigger">
+                        <div id="lt-bar" class="trigger-bar"></div>
+                    </div>
                 </div>
                 <div>
                     <div class="label" style="text-align: center;">右扳机 (RT)</div>
-                    <div class="trigger-container"><div id="rt-bar" class="trigger-bar"></div></div>
+                    <div class="trigger-container" style="cursor: pointer;" id="rt-trigger">
+                        <div id="rt-bar" class="trigger-bar"></div>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button id="arm-btn" onclick="toggleArm()" style="padding: 8px 16px; background: var(--danger); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">ARM SYSTEM</button>
                 </div>
             </div>
 
             <div class="stick-container">
                 <div class="label" style="margin-bottom: 10px;">右摇杆 (RX/RY)</div>
-                <div class="base"><div id="r-dot" class="dot"></div></div>
+                <div class="base" id="right-stick" style="cursor: pointer;"><div id="r-dot" class="dot"></div></div>
+                <div style="margin-top: 10px; font-size: 0.7rem; color: var(--text-dim);">
+                    <span id="r-coords">0.00, 0.00</span>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // 更新为你的 Broker IP: 192.168.1.100
-        const BROKER_IP = '192.168.1.101';
+        // 更新为你的 Broker IP: 192.168.10.105
+        const BROKER_IP = '192.168.1.100';
         const client = mqtt.connect(`ws://${BROKER_IP}:9001`, {
             username: 'myuser',
             password: '123',
@@ -332,6 +349,10 @@
 
                     const rtNormalized = ((data.rt + 1) / 2) * 100;
                     document.getElementById('rt-bar').style.width = rtNormalized + '%';
+                    if (data.lt !== undefined) {
+                        const ltNormalized = ((data.lt + 1) / 2) * 100;
+                        document.getElementById('lt-bar').style.width = ltNormalized + '%';
+                    }
                 }
             } catch (e) {
                 console.warn("Telemetry parse error", e);
@@ -342,7 +363,7 @@
             const dot = document.getElementById(id);
             if (!dot) return;
             const moveX = (x || 0) * 40; 
-            const moveY = (y || 0) * 40;
+            const moveY = -(y || 0) * 40; // Y轴反转，和拖拽逻辑一致
             dot.style.transform = `translate(calc(-50% + ${moveX}px), calc(-50% + ${moveY}px))`;
         }
 
@@ -350,6 +371,183 @@
             const btn = document.getElementById(id);
             if (btn) btn.className = state ? 'btn-circle btn-active' : 'btn-circle';
         }
+
+        // ===== 虚拟控制功能 =====
+        let leftStick = { x: 0, y: 0 };
+        let rightStick = { x: 0, y: 0 };
+        let rtValue = 0;
+        let ltValue = 0; // 新增左扳机值
+        let buttons = { btnA: false, btnB: false, btnX: false, btnY: false };
+        let isArmed = false;
+
+        // 摇杆拖拽功能
+        function initStickControl(stickId, coordsId, stickVar) {
+            const stick = document.getElementById(stickId);
+            const coords = document.getElementById(coordsId);
+            const dot = stick.querySelector('.dot');
+            let isDragging = false;
+
+            function updatePosition(clientX, clientY) {
+                const rect = stick.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                
+                let deltaX = clientX - centerX;
+                let deltaY = clientY - centerY;
+                
+                // 限制在圆形范围内
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                const maxDistance = rect.width / 2 - 12;
+                
+                if (distance > maxDistance) {
+                    deltaX = (deltaX / distance) * maxDistance;
+                    deltaY = (deltaY / distance) * maxDistance;
+                }
+                
+                // 转换为-1到1的范围
+                stickVar.x = deltaX / maxDistance;
+                stickVar.y = -deltaY / maxDistance; // Y轴反转
+                
+                // 更新视觉位置
+                dot.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px))`;
+                coords.textContent = `${stickVar.x.toFixed(2)}, ${stickVar.y.toFixed(2)}`;
+                
+                sendControlData();
+            }
+
+            stick.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                updatePosition(e.clientX, e.clientY);
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    updatePosition(e.clientX, e.clientY);
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                // 回弹到原点
+                stickVar.x = 0;
+                stickVar.y = 0;
+                dot.style.transform = 'translate(-50%, -50%)';
+                coords.textContent = '0.00, 0.00';
+                sendControlData();
+            });
+
+            // 触摸支持
+            stick.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                updatePosition(e.touches[0].clientX, e.touches[0].clientY);
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                if (isDragging && e.touches.length > 0) {
+                    e.preventDefault();
+                    updatePosition(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            });
+
+            document.addEventListener('touchend', () => {
+                isDragging = false;
+                // 回弹到原点
+                stickVar.x = 0;
+                stickVar.y = 0;
+                dot.style.transform = 'translate(-50%, -50%)';
+                coords.textContent = '0.00, 0.00';
+                sendControlData();
+            });
+        }
+
+        // 按钮控制
+        function sendButton(btnName) {
+            buttons[btnName] = !buttons[btnName];
+            updateButton(btnName.toLowerCase(), buttons[btnName]);
+            sendControlData();
+        }
+
+        // ARM/DISARM 切换
+        function toggleArm() {
+            isArmed = !isArmed;
+            const btn = document.getElementById('arm-btn');
+            btn.textContent = isArmed ? 'DISARM SYSTEM' : 'ARM SYSTEM';
+            btn.style.background = isArmed ? 'var(--success)' : 'var(--danger)';
+            buttons.btnA = isArmed;
+            buttons.btnB = !isArmed;
+            updateButton('btn-a', buttons.btnA);
+            updateButton('btn-b', buttons.btnB);
+            sendControlData();
+        }
+
+        // 扳机拖拽/点击控制（通用方法）
+        function initTriggerControl(containerId, barId, setter) {
+            const container = document.getElementById(containerId);
+            let dragging = false;
+            function updateFromX(clientX) {
+                const rect = container.getBoundingClientRect();
+                const pos = clientX - rect.left;
+                let val = (pos / rect.width) * 2 - 1; // -1..1
+                val = Math.max(-1, Math.min(1, val));
+                setter(val);
+                document.getElementById(barId).style.width = ((val + 1) / 2) * 100 + '%';
+                sendControlData();
+            }
+            container.addEventListener('mousedown', e => {
+                dragging = true;
+                updateFromX(e.clientX);
+            });
+            document.addEventListener('mousemove', e => {
+                if (dragging) updateFromX(e.clientX);
+            });
+            document.addEventListener('mouseup', () => { dragging = false; });
+            container.addEventListener('touchstart', e => {
+                e.preventDefault();
+                dragging = true;
+                updateFromX(e.touches[0].clientX);
+            });
+            document.addEventListener('touchmove', e => {
+                if (dragging && e.touches.length > 0) {
+                    e.preventDefault();
+                    updateFromX(e.touches[0].clientX);
+                }
+            });
+            document.addEventListener('touchend', () => { dragging = false; });
+        }
+        // 初始化两个扳机
+        document.addEventListener('DOMContentLoaded', () => {
+            initStickControl('left-stick', 'l-coords', leftStick);
+            initStickControl('right-stick', 'r-coords', rightStick);
+            initTriggerControl('rt-trigger', 'rt-bar', v => { rtValue = v; });
+            initTriggerControl('lt-trigger', 'lt-bar', v => { ltValue = v; });
+        });
+
+        // 发送控制数据
+        function sendControlData() {
+            const controlData = {
+                lx: leftStick.x,
+                ly: leftStick.y,
+                rx: rightStick.x,
+                ry: rightStick.y,
+                rt: rtValue,
+                lt: ltValue,
+                btnA: buttons.btnA,
+                btnB: buttons.btnB,
+                btnX: buttons.btnX,
+                btnY: buttons.btnY
+            };
+            
+            if (client && client.connected) {
+                client.publish('controller/xbox', JSON.stringify(controlData));
+            }
+        }
+
+        // 初始化控制
+        document.addEventListener('DOMContentLoaded', () => {
+            initStickControl('left-stick', 'l-coords', leftStick);
+            initStickControl('right-stick', 'r-coords', rightStick);
+        });
     </script>
 </body>
 
